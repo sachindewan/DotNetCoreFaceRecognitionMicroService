@@ -1,4 +1,5 @@
 ﻿using Faces.WebMvc.Models;
+using Faces.WebMvc.ViewModels;
 using Refit;
 using System;
 using System.Collections.Generic;

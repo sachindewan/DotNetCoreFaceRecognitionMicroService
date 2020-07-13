@@ -1,4 +1,5 @@
 ﻿using Faces.WebMvc.Models;
+using Faces.WebMvc.ViewModels;
 using Microsoft.Extensions.Configuration;
 using Refit;
 using System;

@@ -38,7 +38,10 @@ namespace OrdersApi
                 options.UseLazyLoadingProxies();
                 options.UseSqlServer(Configuration.GetConnectionString("OrderMicroServiceDb"));
             });
-            services.AddControllers();
+            services.AddControllers().AddNewtonsoftJson(options=>
+            {
+                options.SerializerSettings.ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore;
+            });
             services.AddHttpClient();
             services.AddMassTransit(cfg =>
             {

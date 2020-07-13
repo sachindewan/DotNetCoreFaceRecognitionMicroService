@@ -11,6 +11,7 @@ using System.IO;
 using Messaging.InterfacesConstants.Constants;
 using Messaging.InterfacesConstants.Commands;
 using Faces.WebMvc.RestClients;
+using Faces.WebMvc.ViewModels;
 
 namespace Faces.WebMvc.Controllers
 {
@@ -43,7 +44,7 @@ namespace Faces.WebMvc.Controllers
                 await uplodedFile.CopyToAsync(stream);
             }
             orderViewModel.ImageData = stream.ToArray();
-            orderViewModel.ImageUrl = orderViewModel.File.FileName;
+            orderViewModel.PictureUrl = orderViewModel.File.FileName;
             orderViewModel.OrderId = Guid.NewGuid();
             var sendToUri = new Uri($"{RabbitMqMassTransitContstants.RabbitMquri}" + $"{ RabbitMqMassTransitContstants.RegisterOrderCommandQueue}");
             var endPoint = await _busControl.GetSendEndpoint(sendToUri);
@@ -52,7 +53,7 @@ namespace Faces.WebMvc.Controllers
                 orderViewModel.OrderId,
                 orderViewModel.ImageData,
                 orderViewModel.UserEmail,
-                orderViewModel.ImageUrl
+                orderViewModel.PictureUrl
             });
             ViewBag.OrderId = orderViewModel.OrderId;
             return View("Thanks");
