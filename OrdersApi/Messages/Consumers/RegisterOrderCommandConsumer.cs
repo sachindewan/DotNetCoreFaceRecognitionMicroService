@@ -1,6 +1,9 @@
 ﻿using MassTransit;
 using Messaging.InterfacesConstants.Commands;
+using Messaging.InterfacesConstants.Events;
+using Microsoft.AspNetCore.SignalR;
 using Newtonsoft.Json;
+using OrdersApi.Hubs;
 using OrdersApi.Models;
 using OrdersApi.Persistence.Repository;
 using System;
@@ -15,22 +18,35 @@ namespace OrdersApi.Messages.Consumers
     {
         private readonly IOrderRepository _orderRepository;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IHubContext<OrderHub> _hubContext;
 
-        public RegisterOrderCommandConsumer(IOrderRepository orderRepository,IHttpClientFactory httpClientFactory)
+        public RegisterOrderCommandConsumer(IOrderRepository orderRepository,IHttpClientFactory httpClientFactory, IHubContext<OrderHub> hubContext)
         {
             _orderRepository = orderRepository;
             _httpClientFactory = httpClientFactory;
+            _hubContext = hubContext;
         }
         public async Task Consume(ConsumeContext<IRegisterOrderCommand> context)
         {
             if(context.Message.ImageData!=null && context.Message.OrderId!=null && context.Message.UserEmail != null)
             {
-               SaveOrderData(context.Message);
+               await SaveOrderData(context.Message);
+                await _hubContext.Clients.All.SendAsync("UpdateOrders", " New order createed", context.Message.OrderId);
                var client = _httpClientFactory.CreateClient();
                 Tuple<List<byte[]>, Guid> orderDetailsData = await GetFacesFromFaceApiAsync(client, context.Message.ImageData,context.Message.OrderId);
                 List<byte[]> faces = orderDetailsData.Item1;
                 Guid orderId = orderDetailsData.Item2;
                 await SaveOrderDetails(orderId, faces);
+                await _hubContext.Clients.All.SendAsync("UpdateOrders", " Order processed", context.Message.OrderId);
+                //publishing order processed event
+
+                await context.Publish<IOrderProcessedEvent>(new
+                {
+                    OrderId = orderId,
+                    context.Message.UserEmail,
+                    Faces = faces,
+                    context.Message.ImageUrl
+                });
             }
         }
 
@@ -64,7 +80,7 @@ namespace OrdersApi.Messages.Consumers
 
         }
 
-        private  void SaveOrderData(IRegisterOrderCommand message)
+        private  async Task SaveOrderData(IRegisterOrderCommand message)
         {
             Order order = new Order { 
                 ImageData = message.ImageData,
@@ -73,7 +89,7 @@ namespace OrdersApi.Messages.Consumers
                 Status = Status.Registred,
                 PictureUrl = message.ImageUrl
             };
-            _orderRepository.AddOrderEntity(order);
+            await _orderRepository.AddOrderEntity(order);
         }
     }
 }

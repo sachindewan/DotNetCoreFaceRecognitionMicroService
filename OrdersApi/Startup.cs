@@ -14,6 +14,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OrdersApi.Hubs;
 using OrdersApi.Messages.Consumers;
 using OrdersApi.Persistence;
 using OrdersApi.Persistence.Repository;
@@ -42,10 +43,15 @@ namespace OrdersApi
             {
                 options.SerializerSettings.ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore;
             });
+            services.AddSignalR().AddJsonProtocol(options =>
+            {
+                options.PayloadSerializerOptions.PropertyNamingPolicy = null;
+            });
             services.AddHttpClient();
             services.AddMassTransit(cfg =>
             {
                 cfg.AddConsumer<RegisterOrderCommandConsumer>();
+                cfg.AddConsumer<OrderDispatchedEventConsumer>();
             });
             services.AddSingleton(providers => Bus.Factory.CreateUsingRabbitMq(cfg =>
             {
@@ -56,6 +62,16 @@ namespace OrdersApi
                      e.UseMessageRetry(x => x.Interval(2, TimeSpan.FromSeconds(10)));
                      e.Consumer<RegisterOrderCommandConsumer>(providers);
                  });
+                cfg.ReceiveEndpoint(RabbitMqMassTransitContstants.OrderDispatchedServiceQueue, e =>
+                {
+                    e.PrefetchCount = 16;
+                    e.UseMessageRetry(x => x.Interval(2, 100));
+
+
+                    e.Consumer<OrderDispatchedEventConsumer>(providers);
+                    //  EndpointConvention.Map<OrderDispatchedEvent>(e.InputAddress);
+
+                });
                 cfg.ConfigureEndpoints(providers.GetService<IBusRegistrationContext>()); ;
             }));
             services.AddSingleton<IHostedService, BusService>();
@@ -84,6 +100,7 @@ namespace OrdersApi
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                endpoints.MapHub<OrderHub>("/orderhub");
             });
         }
     }
