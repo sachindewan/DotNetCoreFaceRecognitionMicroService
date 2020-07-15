@@ -1,7 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Authorization.Policy;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OrdersApi.Models;
+using Polly;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,6 +29,13 @@ namespace OrdersApi.Persistence
             modelBuilder.Entity<Order>().HasKey(k => k.OrderId);
             modelBuilder.Entity<OrderDetail>().HasKey(k => k.OrderDetailId);
             modelBuilder.Entity<Order>().HasMany(o => o.OrderDetails).WithOne(o => o.Order).HasForeignKey(f => f.OrderId).IsRequired().OnDelete(DeleteBehavior.Cascade);
+        }
+
+        public void MigrateDb()
+        {
+            Policy.Handle<Exception>()
+                .WaitAndRetry(10, r => TimeSpan.FromSeconds(10))
+                .Execute(() => Database.Migrate());
         }
     }
 }

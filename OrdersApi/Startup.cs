@@ -34,55 +34,73 @@ namespace OrdersApi
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<OrderDbContext>(options =>
-            {
-                options.UseLazyLoadingProxies();
-                options.UseSqlServer(Configuration.GetConnectionString("OrderMicroServiceDb"));
-            });
-            services.AddControllers().AddNewtonsoftJson(options=>
-            {
-                options.SerializerSettings.ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore;
-            });
-            services.AddSignalR().AddJsonProtocol(options =>
-            {
-                options.PayloadSerializerOptions.PropertyNamingPolicy = null;
-            });
+            services.Configure<OrderSettings>(Configuration);
+            services.AddDbContext<OrderDbContext>(options => options.UseSqlServer
+            (
+                 //Configuration.GetConnectionString("OrdersContextConnection")
+                 Configuration["OrdersContextConnection"]
+
+            ));
+            Console.Out.WriteLine(Configuration["OrdersContextConnection"]);
+            services.AddSignalR()
+                .AddJsonProtocol(options =>
+                {
+                    options.PayloadSerializerOptions.PropertyNamingPolicy = null;
+                });
+
+
             services.AddHttpClient();
-            services.AddMassTransit(cfg =>
+
+
+            services.AddTransient<IOrderRepository, OrderRepository>();
+
+            services.AddMassTransit(
+                c =>
+                {
+                    c.AddConsumer<RegisterOrderCommandConsumer>();
+                    c.AddConsumer<OrderDispatchedEventConsumer>();
+                });
+
+
+            services.AddSingleton(provider => Bus.Factory.CreateUsingRabbitMq(cfg =>
             {
-                cfg.AddConsumer<RegisterOrderCommandConsumer>();
-                cfg.AddConsumer<OrderDispatchedEventConsumer>();
-            });
-            services.AddSingleton(providers => Bus.Factory.CreateUsingRabbitMq(cfg =>
-            {
-                cfg.Host("localhost", "/", h => { });
+                cfg.Host("rabbitmq", "/", h => { });
                 cfg.ReceiveEndpoint(RabbitMqMassTransitContstants.RegisterOrderCommandQueue, e =>
-                 {
-                     e.PrefetchCount = 16;
-                     e.UseMessageRetry(x => x.Interval(2, TimeSpan.FromSeconds(10)));
-                     e.Consumer<RegisterOrderCommandConsumer>(providers);
-                 });
+                {
+                    e.PrefetchCount = 16;
+                    e.UseMessageRetry(x => x.Interval(2, TimeSpan.FromSeconds(10)));
+                    e.Consumer<RegisterOrderCommandConsumer>(provider);
+
+                });
+
                 cfg.ReceiveEndpoint(RabbitMqMassTransitContstants.OrderDispatchedServiceQueue, e =>
                 {
                     e.PrefetchCount = 16;
                     e.UseMessageRetry(x => x.Interval(2, 100));
 
 
-                    e.Consumer<OrderDispatchedEventConsumer>(providers);
+                    e.Consumer<OrderDispatchedEventConsumer>(provider);
                     //  EndpointConvention.Map<OrderDispatchedEvent>(e.InputAddress);
 
                 });
-                cfg.ConfigureEndpoints(providers.GetService<IBusRegistrationContext>()); ;
+
+                cfg.ConfigureEndpoints(provider.GetRequiredService<IBusRegistrationContext>());
             }));
             services.AddSingleton<IHostedService, BusService>();
-            services.AddCors(corsOptions =>
+            services.AddCors(options =>
             {
-                corsOptions.AddPolicy("corspolicy", builder =>
-                {
-                    builder.AllowAnyHeader().AllowAnyMethod().SetIsOriginAllowed(host => true).AllowCredentials();
-                });
+                options.AddPolicy("CorsPolicy",
+                    builder => builder
+                       .AllowAnyMethod()
+                       .AllowAnyHeader()
+                       .SetIsOriginAllowed((host) => true)
+                       .AllowCredentials());
+
+
             });
-            services.AddTransient<IOrderRepository, OrderRepository>();
+            services.AddControllers();
+
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -102,6 +120,9 @@ namespace OrdersApi
                 endpoints.MapControllers();
                 endpoints.MapHub<OrderHub>("/orderhub");
             });
+
+            var scope = app.ApplicationServices.GetRequiredService<IServiceProvider>().CreateScope();
+            scope.ServiceProvider.GetRequiredService<OrderDbContext>().MigrateDb();
         }
     }
 }

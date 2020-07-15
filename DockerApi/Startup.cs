@@ -2,16 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Faces.WebMvc.RestClients;
-using Faces.WebMvc.Services;
-using MassTransit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace Faces.WebMvc
+namespace DockerApi
 {
     public class Startup
     {
@@ -25,16 +24,7 @@ namespace Faces.WebMvc
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.Configure<AppSettings>(Configuration);
-            services.AddMassTransit();
-            services.AddSingleton(provider => Bus.Factory.CreateUsingRabbitMq(cnf =>
-            {
-               cnf.Host("rabbitmq", "/", h => { });
-               services.AddSingleton(provider => provider.GetRequiredService<IBusControl>());
-               services.AddSingleton<IHostedService, BusService>();
-            }));
-            services.AddHttpClient<IOrderManagementApi, OrderApiManagement>();
-            services.AddControllersWithViews();
+            services.AddControllers();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -44,11 +34,6 @@ namespace Faces.WebMvc
             {
                 app.UseDeveloperExceptionPage();
             }
-            else
-            {
-                app.UseExceptionHandler("/Home/Error");
-            }
-            app.UseStaticFiles();
 
             app.UseRouting();
 
@@ -56,9 +41,7 @@ namespace Faces.WebMvc
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapControllerRoute(
-                    name: "default",
-                    pattern: "{controller=Home}/{action=Index}/{id?}");
+                endpoints.MapControllers();
             });
         }
     }

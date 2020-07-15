@@ -31,12 +31,13 @@
 
 
 </table>
+@inject Faces.WebMvc.AppSettings _orderApiConfiguration;
 @section Scripts{ 
     <script src="~/lib/signalr/dist/browser/signalr.js"></script>
     <script type="text/javascript">
         var timerId;
         var connection = new signalR.HubConnectionBuilder()
-            .withUrl('http://localhost:53759/orderhub')
+            .withUrl('@_orderApiConfiguration.SignalRHubUrl/orderhub')
             .configureLogging(signalR.LogLevel.Information)
             .withAutomaticReconnect()
             .build();
